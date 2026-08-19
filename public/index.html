@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>T Zync — Attendance</title>
+    <link rel="icon" href="/logo.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #2563eb; --primary-light: #3b82f6;
+            --success: #10b981; --success-bg: #f0fdf4;
+            --warning: #f59e0b; --warning-bg: #fffbeb;
+            --danger: #ef4444; --danger-bg: #fef2f2;
+            --purple: #7c3aed; --purple-bg: #f5f3ff;
+            --bg: #f9fafb; --card-bg: #ffffff; --card-border: #e5e7eb;
+            --text-primary: #111827; --text-secondary: #6b7280; --text-muted: #9ca3af;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background-color: var(--bg); color: var(--text-primary); line-height: 1.5;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+        .brand { display: flex; align-items: center; gap: 10px; }
+        .brand img { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; }
+        .brand h1 { font-size: 22px; font-weight: 700; }
+
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn { padding: 9px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-success { background-color: var(--success); color: white; }
+        .btn-danger { background-color: var(--danger); color: white; }
+        .btn-outline { background-color: var(--card-bg); color: var(--text-primary); border: 1px solid var(--card-border); }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+        .status-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: var(--success-bg); color: #15803d; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .status-indicator.offline { background: var(--danger-bg); color: #991b1b; }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+        #syncStatus { margin-bottom: 16px; font-size: 13px; }
+
+        .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--card-border); margin-bottom: 20px; overflow-x: auto; }
+        .tab-btn { padding: 10px 16px; background: none; border: none; border-bottom: 2px solid transparent; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 18px; }
+        .card-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+        .stat-value { font-size: 28px; font-weight: 700; }
+        .stat-value.small { font-size: 20px; }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--card-border); font-size: 13px; }
+        .stat-row:last-child { border-bottom: none; }
+        .stat-row label { color: var(--text-secondary); }
+        .stat-row value { font-weight: 600; font-family: Menlo, Monaco, monospace; }
+
+        .filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; background: var(--card-bg); border: 1px solid var(--card-border); padding: 14px; border-radius: 8px; }
+        .field { display: flex; flex-direction: column; gap: 4px; }
+        .field label { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; }
+        .field input, .field select { padding: 7px 10px; border: 1px solid var(--card-border); border-radius: 6px; font-size: 13px; min-width: 150px; }
+
+        .table-wrap { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { text-align: left; padding: 10px 14px; background: var(--bg); color: var(--text-secondary); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid var(--card-border); white-space: nowrap; }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--card-border); white-space: nowrap; }
+        tr:last-child td { border-bottom: none; }
+        tr.clickable { cursor: pointer; }
+        tr.clickable:hover { background: var(--bg); }
+
+        .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+        .badge.present { background: var(--success-bg); color: #15803d; }
+        .badge.late { background: var(--warning-bg); color: #92400e; }
+        .badge.half-day { background: var(--purple-bg); color: var(--purple); }
+        .badge.absent { background: var(--danger-bg); color: #991b1b; }
+        .badge.in { background: var(--success-bg); color: #15803d; }
+        .badge.out { background: #eef2ff; color: #3730a3; }
+
+        .trend-chart { display: flex; align-items: flex-end; gap: 6px; height: 140px; padding-top: 10px; }
+        .trend-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; gap: 6px; }
+        .trend-bar-track { width: 100%; max-width: 28px; height: 100px; background: var(--bg); border-radius: 4px; display: flex; align-items: flex-end; overflow: hidden; }
+        .trend-bar-fill { width: 100%; background: var(--success); border-radius: 4px 4px 0 0; min-height: 2px; }
+        .trend-label { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+        .trend-value { font-size: 11px; font-weight: 700; color: var(--text-secondary); }
+
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); font-size: 13px; }
+        .loading { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+        .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--card-border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .error { background: var(--danger-bg); border: 1px solid #fecaca; border-radius: 6px; padding: 14px; color: #991b1b; margin-bottom: 16px; font-size: 13px; }
+        .error-title { font-weight: 700; margin-bottom: 6px; }
+        .success-msg { background: var(--success-bg); border: 1px solid #bbf7d0; border-radius: 6px; padding: 14px; color: #15803d; margin-bottom: 16px; font-size: 13px; }
+
+        .search-box { width: 100%; max-width: 320px; padding: 8px 12px; border: 1px solid var(--card-border); border-radius: 6px; font-size: 13px; margin-bottom: 14px; }
+
+        .detail-panel { display: none; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 18px; margin-top: 16px; }
+        .detail-panel.active { display: block; }
+        .detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+        .detail-header h3 { font-size: 16px; }
+        .close-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; z-index: 100; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--card-bg); border-radius: 10px; padding: 22px; width: 420px; max-width: 90vw; max-height: 85vh; overflow-y: auto; }
+        .modal h3 { margin-bottom: 16px; font-size: 16px; }
+        .modal .field { margin-bottom: 12px; width: 100%; }
+        .modal .field input, .modal .field select { width: 100%; }
+        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+        /* Setup wizard */
+        #setupScreen { display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 20px; }
+        #setupScreen.active { display: flex; }
+        .setup-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 32px; width: 440px; max-width: 100%; }
+        .setup-card .brand { justify-content: center; margin-bottom: 6px; }
+        .setup-card p.sub { text-align: center; color: var(--text-secondary); font-size: 13px; margin-bottom: 24px; }
+        .setup-card .field { width: 100%; margin-bottom: 14px; }
+        .setup-card .field input { width: 100%; }
+        .setup-card .btn { width: 100%; justify-content: center; margin-top: 6px; }
+
+        footer { text-align: center; padding: 30px 0 10px; color: var(--text-muted); font-size: 12px; }
+
+        @media (max-width: 768px) { .stat-value { font-size: 22px; } .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+    <div id="setupScreen">
+        <div class="setup-card">
+            <div class="brand"><img src="/logo.png" alt="logo"><h1 id="setupBrandName">T Zync</h1></div>
+            <p class="sub">Connect your ZKTeco device to get started</p>
+            <div id="setupError"></div>
+            <div class="field"><label>Device IP Address</label><input type="text" id="setupIp" placeholder="192.168.1.201"></div>
+            <div class="field"><label>Port</label><input type="number" id="setupPort" value="4370"></div>
+            <div class="field"><label>Communication Password</label><input type="text" id="setupPassword" value="0"></div>
+            <div class="field"><label>Device Label</label><input type="text" id="setupName" placeholder="Main Office Device"></div>
+            <div class="field">
+                <label>Timezone</label>
+                <input type="text" id="setupTimezone" placeholder="Asia/Karachi" value="Asia/Karachi">
+            </div>
+            <button class="btn btn-outline" onclick="testSetupConnection()" id="setupTestBtn">Test Connection</button>
+            <div id="setupTestResult" style="margin-top: 10px; font-size: 12px;"></div>
+            <button class="btn btn-primary" onclick="saveSetup()" id="setupSaveBtn">Save & Continue</button>
+        </div>
+    </div>
+
+    <div id="appScreen" class="container" style="display:none;">
+        <div class="header">
+            <div class="brand">
+                <img src="/logo.png" alt="logo">
+                <div>
+                    <h1 id="brandTitle">T Zync</h1>
+                    <div class="status-indicator" id="statusIndicator"><div class="status-dot"></div>Connecting...</div>
+                </div>
+            </div>
+            <div class="controls">
+                <button class="btn btn-success" onclick="syncFromDevice()" id="syncBtn">⇄ Sync from Device</button>
+                <button class="btn btn-outline" onclick="reloadCurrentTab()">↻ Refresh</button>
+            </div>
+        </div>
+        <div id="syncStatus"></div>
+        <div id="errorContainer"></div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="overview" onclick="showTab('overview')">Overview</button>
+            <button class="tab-btn" data-tab="daily" onclick="showTab('daily')">Daily Report</button>
+            <button class="tab-btn" data-tab="range" onclick="showTab('range')">Date Range / Export</button>
+            <button class="tab-btn" data-tab="punchlog" onclick="showTab('punchlog')">Punch Log</button>
+            <button class="tab-btn" data-tab="employees" onclick="showTab('employees')">Employees</button>
+            <button class="tab-btn" data-tab="settings" onclick="showTab('settings')">Settings</button>
+        </div>
+
+        <div id="tab-overview" class="tab-panel active"></div>
+        <div id="tab-daily" class="tab-panel"></div>
+        <div id="tab-range" class="tab-panel"></div>
+        <div id="tab-punchlog" class="tab-panel"></div>
+        <div id="tab-employees" class="tab-panel"></div>
+        <div id="tab-settings" class="tab-panel"></div>
+
+        <footer>T Zync — developed by the IT team &amp; Naveed Ishfaq</footer>
+    </div>
+
+    <div class="modal-overlay" id="employeeModalOverlay">
+        <div class="modal">
+            <h3 id="employeeModalTitle">Add Employee</h3>
+            <input type="hidden" id="empModalId">
+            <div class="field"><label>Employee ID</label><input type="text" id="empModalCode"></div>
+            <div class="field"><label>Name</label><input type="text" id="empModalName"></div>
+            <div class="field"><label>Department</label><input type="text" id="empModalDept"></div>
+            <div class="field"><label>Position</label><input type="text" id="empModalPosition"></div>
+            <div class="field"><label>Email</label><input type="email" id="empModalEmail"></div>
+            <div class="field"><label>Phone</label><input type="text" id="empModalPhone"></div>
+            <div id="employeeModalError"></div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeEmployeeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitEmployeeModal()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api';
+        let currentTab = 'overview';
+        let employeesCache = [];
+
+        function todayStr() { return new Date().toISOString().slice(0, 10); }
+        function daysAgoStr(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
+        function fmtTime(ts) { return ts ? ts.slice(11, 16) : '—'; }
+        function badgeFor(status) {
+            const cls = { Present: 'present', Late: 'late', 'Half Day': 'half-day', Absent: 'absent' }[status] || 'absent';
+            return `<span class="badge ${cls}">${status}</span>`;
+        }
+
+        async function fetchJson(url, options) {
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                const body = await response.json().catch(() => ({}));
+                throw new Error(body.error || `Server error (${response.status})`);
+            }
+            return response.json();
+        }
+        function showError(message) { document.getElementById('errorContainer').innerHTML = `<div class="error"><div class="error-title">Error</div>${message}</div>`; }
+        function clearError() { document.getElementById('errorContainer').innerHTML = ''; }
+
+        // ============== Boot / Setup ==============
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const status = await fetchJson(`${API_URL}/setup/status`);
+                if (!status.configured) {
+                    document.getElementById('setupScreen').classList.add('active');
+                } else {
+                    document.getElementById('appScreen').style.display = 'block';
+                    await checkHealth();
+                    await loadOverview();
+                }
+            } catch (error) {
+                document.getElementById('setupScreen').classList.add('active');
+            }
+        });
+
+        async function testSetupConnection() {
+            const btn = document.getElementById('setupTestBtn');
+            const resultEl = document.getElementById('setupTestResult');
+            btn.disabled = true;
+            resultEl.style.color = 'var(--text-secondary)';
+            resultEl.textContent = 'Connecting...';
+            try {
+                const info = await fetchJson(`${API_URL}/setup/test`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ip: document.getElementById('setupIp').value,
+                        port: Number(document.getElementById('setupPort').value) || 4370,
+                        password: document.getElementById('setupPassword').value,
+                    }),
+                });
+                resultEl.style.color = 'var(--success)';
+                resultEl.textContent = `Connected: ${info.device_name}, S/N ${info.serial_number}, ${info.user_count} users, device time ${info.device_time}`;
+            } catch (error) {
+                resultEl.style.color = 'var(--danger)';
+                resultEl.textContent = error.message;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function saveSetup() {
+            const btn = document.getElementById('setupSaveBtn');
+            btn.disabled = true;
+            try {
+                await fetchJson(`${API_URL}/setup/save`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ip: document.getElementById('setupIp').value,
+                        port: Number(document.getElementById('setupPort').value) || 4370,
+                        password: document.getElementById('setupPassword').value,
+                        device_name: document.getElementById('setupName').value || 'Main Device',
+                        timezone: document.getElementById('setupTimezone').value || 'Asia/Karachi',
+                    }),
+                });
+                document.getElementById('setupScreen').classList.remove('active');
+                document.getElementById('appScreen').style.display = 'block';
+                await checkHealth();
+                await loadOverview();
+            } catch (error) {
+                document.getElementById('setupError').innerHTML = `<div class="error">${error.message}</div>`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // ============== Tabs ==============
+        function showTab(name) {
+            currentTab = name;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `tab-${name}`));
+            loadTab(name);
+        }
+        function reloadCurrentTab() { loadTab(currentTab); }
+
+        async function loadTab(name) {
+            clearError();
+            try {
+                if (name === 'overview') await loadOverview();
+                else if (name === 'daily') await loadDaily();
+                else if (name === 'range') await loadRange();
+                else if (name === 'punchlog') await loadPunchLog();
+                else if (name === 'employees') await loadEmployees();
+                else if (name === 'settings') await loadSettings();
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        // ============== Health / Sync ==============
+        async function checkHealth() {
+            const el = document.getElementById('statusIndicator');
+            try {
+                await fetchJson(`${API_URL}/health`);
+                el.innerHTML = '<div class="status-dot"></div>Online';
+                el.className = 'status-indicator';
+            } catch (error) {
+                el.innerHTML = '<div class="status-dot"></div>Offline';
+                el.className = 'status-indicator offline';
+            }
+        }
+
+        async function syncFromDevice() {
+            const syncBtn = document.getElementById('syncBtn');
+            const syncStatus = document.getElementById('syncStatus');
+            try {
+                syncBtn.disabled = true;
+                syncStatus.style.color = 'var(--text-secondary)';
+                syncStatus.textContent = 'Connecting to device and pulling data...';
+                const result = await fetchJson(`${API_URL}/sync`, { method: 'POST' });
+                syncStatus.style.color = 'var(--success)';
+                syncStatus.textContent = `Synced: ${result.employees_on_device} employees, ${result.new_transactions} new punches (${result.logs_on_device} on device) at ${new Date(result.synced_at).toLocaleTimeString()}`;
+                await reloadCurrentTab();
+            } catch (error) {
+                syncStatus.style.color = 'var(--danger)';
+                syncStatus.textContent = `Sync failed: ${error.message}`;
+            } finally {
+                syncBtn.disabled = false;
+            }
+        }
+
+        // ============== Overview ==============
+        async function loadOverview() {
+            const [dashboard, devices, trend, settings] = await Promise.all([
+                fetchJson(`${API_URL}/dashboard`), fetchJson(`${API_URL}/devices`),
+                fetchJson(`${API_URL}/reports/trend?days=14`), fetchJson(`${API_URL}/settings`),
+            ]);
+            document.getElementById('brandTitle').textContent = settings.brand_name || 'T Zync';
+
+            const device = devices[0] || {};
+            const maxCount = Math.max(1, ...trend.map(t => Number(t.present_count) + Number(t.absent_count)));
+
+            document.getElementById('tab-overview').innerHTML = `
+                <div class="grid">
+                    <div class="card"><div class="card-title">Total Employees</div><div class="stat-value">${dashboard.total_employees ?? 0}</div></div>
+                    <div class="card"><div class="card-title">Transactions Today</div><div class="stat-value">${dashboard.today_transactions ?? 0}</div></div>
+                    <div class="card"><div class="card-title">Checked In Today</div><div class="stat-value">${dashboard.today_checkins ?? 0}</div></div>
+                    <div class="card">
+                        <div class="card-title">Device Status</div>
+                        <div class="stat-value small" style="color: ${device.status === 'Online' ? 'var(--success)' : 'var(--danger)'};">● ${device.status || 'Unknown'}</div>
+                        <div class="stat-row"><label>Model</label><value>${device.device_model || '—'}</value></div>
+                        <div class="stat-row"><label>IP</label><value>${device.device_ip || '—'}:${device.device_port || ''}</value></div>
+                    </div>
+                </div>
+                <div class="card" style="margin-bottom: 20px;">
+                    <div class="card-title">Attendance Trend (last ${trend.length} days)</div>
+                    <div class="trend-chart">
+                        ${trend.map(t => {
+                            const present = Number(t.present_count), total = present + Number(t.absent_count);
+                            const pct = total > 0 ? Math.round((present / total) * 100) : 0;
+                            const heightPct = Math.max(4, Math.round((present / maxCount) * 100));
+                            const label = new Date(t.day + 'T00:00:00').toLocaleDateString([], { month: 'short', day: 'numeric' });
+                            return `<div class="trend-bar-wrap"><div class="trend-value">${pct}%</div><div class="trend-bar-track"><div class="trend-bar-fill" style="height:${heightPct}%;"></div></div><div class="trend-label">${label}</div></div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // ============== Daily Report ==============
+        async function loadDaily(date) {
+            date = date || document.getElementById('dailyDateInput')?.value || todayStr();
+            const rows = await fetchJson(`${API_URL}/reports/daily?date=${date}`);
+            const present = rows.filter(r => r.status === 'Present').length;
+            const late = rows.filter(r => r.status === 'Late').length;
+            const half = rows.filter(r => r.status === 'Half Day').length;
+            const absent = rows.filter(r => r.status === 'Absent').length;
+
+            document.getElementById('tab-daily').innerHTML = `
+                <div class="filters"><div class="field"><label>Date</label><input type="date" id="dailyDateInput" value="${date}" onchange="loadDaily(this.value)"></div></div>
+                <div class="grid">
+                    <div class="card"><div class="card-title">Present</div><div class="stat-value" style="color: var(--success);">${present}</div></div>
+                    <div class="card"><div class="card-title">Late</div><div class="stat-value" style="color: var(--warning);">${late}</div></div>
+                    <div class="card"><div class="card-title">Half Day</div><div class="stat-value" style="color: var(--purple);">${half}</div></div>
+                    <div class="card"><div class="card-title">Absent</div><div class="stat-value" style="color: var(--danger);">${absent}</div></div>
+                </div>
+                <div class="table-wrap"><table>
+                    <thead><tr><th>Employee ID</th><th>Name</th><th>Check In</th><th>Check Out</th><th>Punches</th><th>Hours</th><th>Status</th></tr></thead>
+                    <tbody>${rows.map(r => `<tr><td>${r.emp_code}</td><td>${r.name}</td><td>${fmtTime(r.check_in)}</td><td>${fmtTime(r.check_out)}</td><td>${r.punches}</td><td>${r.hours_worked}</td><td>${badgeFor(r.status)}</td></tr>`).join('')}</tbody>
+                </table></div>
+            `;
+        }
+
+        // ============== Range Report ==============
+        async function loadRange() {
+            if (employeesCache.length === 0) employeesCache = await fetchJson(`${API_URL}/employees`).catch(() => []);
+            const existingFrom = document.getElementById('rangeFrom')?.value || daysAgoStr(6);
+            const existingTo = document.getElementById('rangeTo')?.value || todayStr();
+            const existingEmp = document.getElementById('rangeEmployee')?.value || '';
+
+            document.getElementById('tab-range').innerHTML = `
+                <div class="filters">
+                    <div class="field"><label>From</label><input type="date" id="rangeFrom" value="${existingFrom}"></div>
+                    <div class="field"><label>To</label><input type="date" id="rangeTo" value="${existingTo}"></div>
+                    <div class="field"><label>Employee</label><select id="rangeEmployee"><option value="">All Employees</option>${employeesCache.map(e => `<option value="${e.id}" ${String(e.id) === existingEmp ? 'selected' : ''}>${e.name} (${e.employee_id})</option>`).join('')}</select></div>
+                    <button class="btn btn-primary" onclick="runRangeReport()">Run Report</button>
+                    <button class="btn btn-outline" onclick="exportRangeCsv()">⬇ Export CSV</button>
+                </div>
+                <div id="rangeResults"><div class="empty-state">Choose a date range and click "Run Report".</div></div>
+            `;
+        }
+
+        async function runRangeReport() {
+            const from = document.getElementById('rangeFrom').value;
+            const to = document.getElementById('rangeTo').value;
+            const employeeId = document.getElementById('rangeEmployee').value;
+            const resultsEl = document.getElementById('rangeResults');
+            resultsEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            try {
+                const params = new URLSearchParams({ from, to });
+                if (employeeId) params.set('employee_id', employeeId);
+                const rows = await fetchJson(`${API_URL}/reports/range?${params}`);
+                const totalHours = rows.reduce((s, r) => s + Number(r.hours_worked || 0), 0);
+
+                resultsEl.innerHTML = rows.length === 0 ? '<div class="empty-state">No records in this range.</div>' : `
+                    <div class="card" style="margin-bottom:16px;"><div class="card-title">Total Hours (all rows shown)</div><div class="stat-value">${Math.round(totalHours * 100) / 100}</div></div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Date</th><th>Employee ID</th><th>Name</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Status</th></tr></thead>
+                        <tbody>${rows.map(r => `<tr><td>${r.day}</td><td>${r.emp_code}</td><td>${r.name}</td><td>${fmtTime(r.check_in)}</td><td>${fmtTime(r.check_out)}</td><td>${r.hours_worked}</td><td>${badgeFor(r.status)}</td></tr>`).join('')}</tbody>
+                    </table></div>
+                `;
+            } catch (error) {
+                resultsEl.innerHTML = '';
+                showError(error.message);
+            }
+        }
+
+        function exportRangeCsv() {
+            const from = document.getElementById('rangeFrom').value;
+            const to = document.getElementById('rangeTo').value;
+            const employeeId = document.getElementById('rangeEmployee').value;
+            const params = new URLSearchParams({ from, to });
+            if (employeeId) params.set('employee_id', employeeId);
+            window.open(`${API_URL}/reports/range/export?${params}`, '_blank');
+        }
+
+        // ============== Punch Log ==============
+        async function loadPunchLog() {
+            if (employeesCache.length === 0) employeesCache = await fetchJson(`${API_URL}/employees`).catch(() => []);
+            const from = document.getElementById('punchFrom')?.value || todayStr();
+            const to = document.getElementById('punchTo')?.value || todayStr();
+            const empId = document.getElementById('punchEmployee')?.value || '';
+
+            document.getElementById('tab-punchlog').innerHTML = `
+                <div class="filters">
+                    <div class="field"><label>From</label><input type="date" id="punchFrom" value="${from}"></div>
+                    <div class="field"><label>To</label><input type="date" id="punchTo" value="${to}"></div>
+                    <div class="field"><label>Employee</label><select id="punchEmployee"><option value="">All Employees</option>${employeesCache.map(e => `<option value="${e.id}" ${String(e.id) === empId ? 'selected' : ''}>${e.name} (${e.employee_id})</option>`).join('')}</select></div>
+                    <button class="btn btn-primary" onclick="runPunchLog()">Show Punches</button>
+                </div>
+                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Raw punches as recorded by the device. IN/OUT is inferred from the device's own state code when available, otherwise alternated automatically.</p>
+                <div id="punchResults"><div class="empty-state">Choose a range and click "Show Punches".</div></div>
+            `;
+        }
+
+        async function runPunchLog() {
+            const from = document.getElementById('punchFrom').value;
+            const to = document.getElementById('punchTo').value;
+            const employeeId = document.getElementById('punchEmployee').value;
+            const resultsEl = document.getElementById('punchResults');
+            resultsEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            try {
+                const params = new URLSearchParams({ from, to });
+                if (employeeId) params.set('employee_id', employeeId);
+                const rows = await fetchJson(`${API_URL}/punchlog?${params}`);
+                const empById = new Map(employeesCache.map(e => [e.id, e]));
+
+                resultsEl.innerHTML = rows.length === 0 ? '<div class="empty-state">No punches in this range.</div>' : `
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Date</th><th>Time</th><th>Employee</th><th>Label</th></tr></thead>
+                        <tbody>${rows.map(p => {
+                            const emp = empById.get(p.employee_id);
+                            const cls = p.inferred_label === 'IN' ? 'in' : p.inferred_label === 'OUT' ? 'out' : 'present';
+                            return `<tr><td>${p.transaction_time.slice(0,10)}</td><td>${fmtTime(p.transaction_time)}</td><td>${emp ? emp.name : p.employee_id}</td><td><span class="badge ${cls}">${p.inferred_label}</span></td></tr>`;
+                        }).join('')}</tbody>
+                    </table></div>
+                `;
+            } catch (error) {
+                resultsEl.innerHTML = '';
+                showError(error.message);
+            }
+        }
+
+        // ============== Employees ==============
+        async function loadEmployees() {
+            employeesCache = await fetchJson(`${API_URL}/employees`);
+            document.getElementById('tab-employees').innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+                    <input type="text" class="search-box" placeholder="Search employees..." oninput="filterEmployees(this.value)" style="margin-bottom:0;">
+                    <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add Employee</button>
+                </div>
+                <div class="table-wrap"><table>
+                    <thead><tr><th>Employee ID</th><th>Name</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody id="employeesTableBody">${renderEmployeeRows(employeesCache)}</tbody>
+                </table></div>
+                <div class="detail-panel" id="employeeDetailPanel"></div>
+            `;
+        }
+
+        function renderEmployeeRows(list) {
+            if (list.length === 0) return `<tr><td colspan="5" class="empty-state">No employees found.</td></tr>`;
+            return list.map(e => `
+                <tr>
+                    <td class="clickable" onclick="showEmployeeDetail(${e.id})">${e.employee_id}</td>
+                    <td class="clickable" onclick="showEmployeeDetail(${e.id})">${e.name}</td>
+                    <td>${e.department || '—'}</td>
+                    <td>${e.status}</td>
+                    <td>
+                        <button class="btn btn-outline btn-sm" onclick="openEmployeeModal(${e.id})">Edit</button>
+                        ${e.status === 'Active'
+                            ? `<button class="btn btn-outline btn-sm" onclick="deactivateEmployee(${e.id})">Deactivate</button>`
+                            : `<button class="btn btn-outline btn-sm" onclick="reactivateEmployee(${e.id})">Reactivate</button>
+                               <button class="btn btn-danger btn-sm" onclick="deleteEmployee(${e.id})">Delete</button>`}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterEmployees(query) {
+            const q = query.toLowerCase();
+            const filtered = employeesCache.filter(e => e.name.toLowerCase().includes(q) || e.employee_id.toLowerCase().includes(q));
+            document.getElementById('employeesTableBody').innerHTML = renderEmployeeRows(filtered);
+        }
+
+        function openEmployeeModal(id) {
+            const emp = id ? employeesCache.find(e => e.id === id) : null;
+            document.getElementById('employeeModalTitle').textContent = emp ? 'Edit Employee' : 'Add Employee';
+            document.getElementById('empModalId').value = emp ? emp.id : '';
+            document.getElementById('empModalCode').value = emp ? emp.employee_id : '';
+            document.getElementById('empModalCode').disabled = !!emp;
+            document.getElementById('empModalName').value = emp ? emp.name : '';
+            document.getElementById('empModalDept').value = emp ? (emp.department || '') : '';
+            document.getElementById('empModalPosition').value = emp ? (emp.position || '') : '';
+            document.getElementById('empModalEmail').value = emp ? (emp.email || '') : '';
+            document.getElementById('empModalPhone').value = emp ? (emp.phone || '') : '';
+            document.getElementById('employeeModalError').innerHTML = '';
+            document.getElementById('employeeModalOverlay').classList.add('active');
+        }
+        function closeEmployeeModal() { document.getElementById('employeeModalOverlay').classList.remove('active'); }
+
+        async function submitEmployeeModal() {
+            const id = document.getElementById('empModalId').value;
+            const payload = {
+                name: document.getElementById('empModalName').value,
+                department: document.getElementById('empModalDept').value,
+                position: document.getElementById('empModalPosition').value,
+                email: document.getElementById('empModalEmail').value,
+                phone: document.getElementById('empModalPhone').value,
+            };
+            try {
+                if (id) {
+                    await fetchJson(`${API_URL}/employees/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                } else {
+                    payload.employee_id = document.getElementById('empModalCode').value;
+                    if (!payload.employee_id || !payload.name) throw new Error('Employee ID and Name are required');
+                    await fetchJson(`${API_URL}/employees`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                }
+                closeEmployeeModal();
+                await loadEmployees();
+            } catch (error) {
+                document.getElementById('employeeModalError').innerHTML = `<div class="error">${error.message}</div>`;
+            }
+        }
+
+        async function deactivateEmployee(id) {
+            if (!confirm('Deactivate this employee? Their history is kept.')) return;
+            await fetchJson(`${API_URL}/employees/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'Inactive' }) });
+            await loadEmployees();
+        }
+        async function reactivateEmployee(id) {
+            await fetchJson(`${API_URL}/employees/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'Active' }) });
+            await loadEmployees();
+        }
+        async function deleteEmployee(id) {
+            if (!confirm('Permanently delete this employee and ALL their attendance history? This cannot be undone.')) return;
+            try {
+                const result = await fetchJson(`${API_URL}/employees/${id}?force=true`, { method: 'DELETE' });
+                await loadEmployees();
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function showEmployeeDetail(id) {
+            const panel = document.getElementById('employeeDetailPanel');
+            panel.className = 'detail-panel active';
+            panel.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            const from = daysAgoStr(29), to = todayStr();
+            try {
+                const summary = await fetchJson(`${API_URL}/employees/${id}/summary?from=${from}&to=${to}`);
+                const emp = summary.employee || {};
+                panel.innerHTML = `
+                    <div class="detail-header"><h3>${emp.name || 'Employee'} — Last 30 Days</h3><button class="close-btn" onclick="document.getElementById('employeeDetailPanel').classList.remove('active')">✕</button></div>
+                    <div class="grid">
+                        <div class="card"><div class="card-title">Present</div><div class="stat-value" style="color:var(--success);">${summary.days_present}</div></div>
+                        <div class="card"><div class="card-title">Late</div><div class="stat-value" style="color:var(--warning);">${summary.days_late}</div></div>
+                        <div class="card"><div class="card-title">Half Day</div><div class="stat-value" style="color:var(--purple);">${summary.days_half_day}</div></div>
+                        <div class="card"><div class="card-title">Absent</div><div class="stat-value" style="color:var(--danger);">${summary.days_absent}</div></div>
+                        <div class="card"><div class="card-title">Total Hours</div><div class="stat-value">${summary.total_hours}</div></div>
+                    </div>
+                    <div class="table-wrap"><table>
+                        <thead><tr><th>Date</th><th>Check In</th><th>Check Out</th><th>Hours</th><th>Status</th></tr></thead>
+                        <tbody>${summary.history.map(r => `<tr><td>${r.day}</td><td>${fmtTime(r.check_in)}</td><td>${fmtTime(r.check_out)}</td><td>${r.hours_worked}</td><td>${badgeFor(r.status)}</td></tr>`).join('')}</tbody>
+                    </table></div>
+                `;
+            } catch (error) {
+                panel.innerHTML = `<div class="error">${error.message}</div>`;
+            }
+        }
+
+        // ============== Settings ==============
+        async function loadSettings() {
+            const [settings, devices] = await Promise.all([fetchJson(`${API_URL}/settings`), fetchJson(`${API_URL}/devices`)]);
+            const device = devices[0] || {};
+
+            document.getElementById('tab-settings').innerHTML = `
+                <div class="grid">
+                    <div class="card">
+                        <div class="card-title">Shift Settings</div>
+                        <div class="field" style="margin-bottom:10px;"><label>Shift Start</label><input type="time" id="settingShiftStart" value="${settings.shift_start || '09:00'}"></div>
+                        <div class="field" style="margin-bottom:10px;"><label>Grace Period (minutes)</label><input type="number" id="settingGrace" value="${settings.grace_minutes || '15'}" min="0"></div>
+                        <div class="field" style="margin-bottom:10px;"><label>Half Day Threshold (hours)</label><input type="number" id="settingHalfDay" value="${settings.half_day_hours || '4'}" min="0" step="0.5"></div>
+                        <div class="field" style="margin-bottom:14px;"><label>Timezone (display only)</label><input type="text" id="settingTimezone" value="${settings.timezone || 'Asia/Karachi'}"></div>
+                        <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+                        <div id="settingsSaveStatus" style="margin-top:8px; font-size:12px;"></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Device</div>
+                        <div class="stat-row"><label>Name</label><value>${device.device_name || '—'}</value></div>
+                        <div class="stat-row"><label>Model</label><value>${device.device_model || '—'}</value></div>
+                        <div class="stat-row"><label>Serial</label><value>${device.serial_number || '—'}</value></div>
+                        <div class="stat-row"><label>IP</label><value>${device.device_ip || '—'}:${device.device_port || ''}</value></div>
+                        <div class="stat-row"><label>Status</label><value style="color:${device.status === 'Online' ? 'var(--success)' : 'var(--danger)'};">${device.status || '—'}</value></div>
+                        <button class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="checkDeviceClock()">Check Device Clock</button>
+                        <div id="deviceClockResult" style="margin-top:8px; font-size:12px;"></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-title">Backup &amp; Restore</div>
+                        <p style="font-size:12px;color:var(--text-secondary); margin-bottom:12px;">Download a full snapshot of your database, or restore from a previous backup.</p>
+                        <button class="btn btn-outline btn-sm" onclick="downloadBackup()">⬇ Download Backup</button>
+                        <div style="margin-top:12px;">
+                            <input type="file" id="restoreFile" accept=".db">
+                            <button class="btn btn-danger btn-sm" style="margin-top:8px;" onclick="restoreBackup()">Restore from File</button>
+                        </div>
+                        <div id="backupStatus" style="margin-top:8px; font-size:12px;"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function saveSettings() {
+            const statusEl = document.getElementById('settingsSaveStatus');
+            try {
+                await fetchJson(`${API_URL}/settings`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        shift_start: document.getElementById('settingShiftStart').value,
+                        grace_minutes: document.getElementById('settingGrace').value,
+                        half_day_hours: document.getElementById('settingHalfDay').value,
+                        timezone: document.getElementById('settingTimezone').value,
+                    }),
+                });
+                statusEl.style.color = 'var(--success)'; statusEl.textContent = 'Saved.';
+            } catch (error) {
+                statusEl.style.color = 'var(--danger)'; statusEl.textContent = error.message;
+            }
+        }
+
+        async function checkDeviceClock() {
+            const el = document.getElementById('deviceClockResult');
+            el.style.color = 'var(--text-secondary)'; el.textContent = 'Checking...';
+            try {
+                const result = await fetchJson(`${API_URL}/device/time`);
+                const drift = result.drift_seconds;
+                el.style.color = Math.abs(drift) > 60 ? 'var(--danger)' : 'var(--success)';
+                el.textContent = `Device: ${result.device_time} | Server: ${new Date(result.server_time).toLocaleString()} | Drift: ${drift}s`;
+            } catch (error) {
+                el.style.color = 'var(--danger)'; el.textContent = error.message;
+            }
+        }
+
+        function downloadBackup() { window.open(`${API_URL}/backup`, '_blank'); }
+
+        async function restoreBackup() {
+            const fileInput = document.getElementById('restoreFile');
+            const statusEl = document.getElementById('backupStatus');
+            if (!fileInput.files[0]) { statusEl.textContent = 'Choose a backup file first.'; statusEl.style.color = 'var(--danger)'; return; }
+            if (!confirm('This will REPLACE all current data with the backup. Continue?')) return;
+
+            const formData = new FormData();
+            formData.append('backup', fileInput.files[0]);
+            statusEl.style.color = 'var(--text-secondary)'; statusEl.textContent = 'Restoring...';
+            try {
+                const response = await fetch(`${API_URL}/restore`, { method: 'POST', body: formData });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+                statusEl.style.color = 'var(--success)'; statusEl.textContent = result.message;
+            } catch (error) {
+                statusEl.style.color = 'var(--danger)'; statusEl.textContent = error.message;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+node_modules/
+venv/
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+__pycache__/
+*.pyc
+.env
+npm-debug.log*

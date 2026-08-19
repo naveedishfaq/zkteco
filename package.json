@@ -1,0 +1,19 @@
+{
+  "name": "tzync-attendance",
+  "version": "1.0.0",
+  "description": "T Zync - standalone attendance dashboard for ZKTeco devices",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "setup:python": "node scripts/setup-python.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "multer": "^2.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
