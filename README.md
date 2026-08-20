@@ -13,7 +13,7 @@ venv\Scripts\pip.exe install -r requirements.txt
 npm start
 ```
 
-Open `http://localhost:3000` and follow the setup wizard to connect your device.
+Open `http://localhost:34370` and follow the setup wizard to connect your device.
 
 ## Features
 

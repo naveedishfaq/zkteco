@@ -416,10 +416,21 @@ app.post('/api/restore', upload.single('backup'), (req, res) => {
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-const PORT = process.env.PORT || 3000;
+// 3000/8080/etc are common defaults other local dev servers grab first —
+// use something distinctive so T Zync doesn't collide with unrelated apps.
+const PORT = process.env.PORT || 34370;
 
 applySeedConfigIfPresent().finally(() => {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`T Zync running at http://localhost:${PORT}`);
+  });
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} is already in use by another application. Set PORT=<other-port> and restart.`);
+    } else {
+      console.error('Failed to start server:', err.message);
+    }
+    process.exit(1);
   });
 });

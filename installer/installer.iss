@@ -42,7 +42,7 @@ Name: "{group}\Uninstall T Zync"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\T Zync"; Filename: "{app}\Start-TZync.vbs"; IconFilename: "{app}\logo.ico"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\Start-TZync.vbs"; Description: "Launch T Zync now"; Flags: postinstall nowait skipifsilent shellexec
+Filename: "{app}\Start-TZync.vbs"; Description: "Launch T Zync now"; Flags: postinstall nowait shellexec
 
 [Code]
 var
