@@ -541,8 +541,8 @@
                         <button class="btn btn-outline btn-sm" onclick="openEmployeeModal(${e.id})">Edit</button>
                         ${e.status === 'Active'
                             ? `<button class="btn btn-outline btn-sm" onclick="deactivateEmployee(${e.id})">Deactivate</button>`
-                            : `<button class="btn btn-outline btn-sm" onclick="reactivateEmployee(${e.id})">Reactivate</button>
-                               <button class="btn btn-danger btn-sm" onclick="deleteEmployee(${e.id})">Delete</button>`}
+                            : `<button class="btn btn-outline btn-sm" onclick="reactivateEmployee(${e.id})">Reactivate</button>`}
+                        <button class="btn btn-danger btn-sm" onclick="deleteEmployee(${e.id})">Delete</button>
                     </td>
                 </tr>
             `).join('');
@@ -604,26 +604,45 @@
             await loadEmployees();
         }
         async function deleteEmployee(id) {
-            if (!confirm('Permanently delete this employee and ALL their attendance history? This cannot be undone.')) return;
+            if (!confirm('Delete this employee?')) return;
             try {
-                const result = await fetchJson(`${API_URL}/employees/${id}?force=true`, { method: 'DELETE' });
+                const result = await fetchJson(`${API_URL}/employees/${id}`, { method: 'DELETE' });
+                if (result.mode === 'deactivated') {
+                    if (confirm(`${result.reason}\n\nPermanently delete anyway, removing their attendance history too?`)) {
+                        await fetchJson(`${API_URL}/employees/${id}?force=true`, { method: 'DELETE' });
+                    }
+                }
                 await loadEmployees();
             } catch (error) {
                 showError(error.message);
             }
         }
 
+        let detailEmployeeId = null;
+
         async function showEmployeeDetail(id) {
+            detailEmployeeId = id;
             const panel = document.getElementById('employeeDetailPanel');
             panel.className = 'detail-panel active';
             panel.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
             panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            const from = daysAgoStr(29), to = todayStr();
+            await runEmployeeDetail(daysAgoStr(29), todayStr());
+        }
+
+        async function runEmployeeDetail(from, to) {
+            const id = detailEmployeeId;
+            const panel = document.getElementById('employeeDetailPanel');
             try {
                 const summary = await fetchJson(`${API_URL}/employees/${id}/summary?from=${from}&to=${to}`);
                 const emp = summary.employee || {};
                 panel.innerHTML = `
-                    <div class="detail-header"><h3>${emp.name || 'Employee'} — Last 30 Days</h3><button class="close-btn" onclick="document.getElementById('employeeDetailPanel').classList.remove('active')">✕</button></div>
+                    <div class="detail-header"><h3>${emp.name || 'Employee'} — Individual Report</h3><button class="close-btn" onclick="document.getElementById('employeeDetailPanel').classList.remove('active')">✕</button></div>
+                    <div class="filters">
+                        <div class="field"><label>From</label><input type="date" id="empDetailFrom" value="${from}"></div>
+                        <div class="field"><label>To</label><input type="date" id="empDetailTo" value="${to}"></div>
+                        <button class="btn btn-primary btn-sm" onclick="runEmployeeDetail(document.getElementById('empDetailFrom').value, document.getElementById('empDetailTo').value)">Run</button>
+                        <button class="btn btn-outline btn-sm" onclick="exportEmployeeCsv()">⬇ Export CSV</button>
+                    </div>
                     <div class="grid">
                         <div class="card"><div class="card-title">Present</div><div class="stat-value" style="color:var(--success);">${summary.days_present}</div></div>
                         <div class="card"><div class="card-title">Late</div><div class="stat-value" style="color:var(--warning);">${summary.days_late}</div></div>
@@ -639,6 +658,12 @@
             } catch (error) {
                 panel.innerHTML = `<div class="error">${error.message}</div>`;
             }
+        }
+
+        function exportEmployeeCsv() {
+            const from = document.getElementById('empDetailFrom').value;
+            const to = document.getElementById('empDetailTo').value;
+            window.open(`${API_URL}/reports/range/export?from=${from}&to=${to}&employee_id=${detailEmployeeId}`, '_blank');
         }
 
         // ============== Settings ==============

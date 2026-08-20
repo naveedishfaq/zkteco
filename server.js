@@ -13,7 +13,13 @@ const execFileAsync = promisify(execFile);
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
-const PYTHON_BIN = path.join(__dirname, 'venv', 'Scripts', 'python.exe');
+// In dev, we run against a local venv. In an installed build, server.js lives
+// in <install>/app/ and a bundled Python sits in <install>/runtime/python/.
+const PYTHON_CANDIDATES = [
+  path.join(__dirname, 'venv', 'Scripts', 'python.exe'),
+  path.join(__dirname, '..', 'runtime', 'python', 'python.exe'),
+];
+const PYTHON_BIN = PYTHON_CANDIDATES.find(p => fs.existsSync(p)) || 'python';
 const SYNC_SCRIPT = path.join(__dirname, 'scripts', 'device_sync.py');
 
 process.on('uncaughtException', (err) => console.error('Uncaught exception:', err.message));
@@ -56,29 +62,50 @@ app.post('/api/setup/test', async (req, res) => {
   }
 });
 
+async function saveDeviceConfig({ ip, port, password, device_name, timezone }) {
+  if (!ip) throw new Error('Device IP is required');
+
+  const info = await runDeviceScript('test', { ip, port: port || 4370, password: password || 0 }).catch(() => null);
+
+  db.prepare(`
+    INSERT INTO devices (device_name, device_ip, device_port, device_password, device_model, serial_number, firmware_version, status, last_sync)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'Online', datetime('now'))
+    ON CONFLICT(device_ip) DO UPDATE SET
+      device_name = excluded.device_name, device_port = excluded.device_port,
+      device_password = excluded.device_password, status = 'Online', last_sync = datetime('now')
+  `).run(
+    device_name || 'Main Device', ip, port || 4370, password || 0,
+    info?.device_name || null, info?.serial_number || null, info?.firmware_version || null
+  );
+
+  if (timezone) {
+    db.prepare(`INSERT INTO settings (key, value) VALUES ('timezone', ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(timezone);
+  }
+
+  return info;
+}
+
+// If the installer collected device details, apply them once on first boot
+// so the app opens already-configured instead of showing the web wizard.
+async function applySeedConfigIfPresent() {
+  const seedPath = path.join(__dirname, '..', 'seed-config.json');
+  if (getConfiguredDevice() || !fs.existsSync(seedPath)) return;
+
+  try {
+    const seed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+    await saveDeviceConfig(seed);
+    console.log(`Applied device config from installer for ${seed.ip}`);
+  } catch (error) {
+    console.error('Seed config could not be applied, falling back to setup wizard:', error.message);
+  } finally {
+    fs.renameSync(seedPath, seedPath + '.applied');
+  }
+}
+
 app.post('/api/setup/save', async (req, res) => {
   try {
-    const { ip, port, password, device_name, timezone } = req.body;
-    if (!ip) return res.status(400).json({ error: 'Device IP is required' });
-
-    const info = await runDeviceScript('test', { ip, port: port || 4370, password: password || 0 }).catch(() => null);
-
-    db.prepare(`
-      INSERT INTO devices (device_name, device_ip, device_port, device_password, device_model, serial_number, firmware_version, status, last_sync)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'Online', datetime('now'))
-      ON CONFLICT(device_ip) DO UPDATE SET
-        device_name = excluded.device_name, device_port = excluded.device_port,
-        device_password = excluded.device_password, status = 'Online', last_sync = datetime('now')
-    `).run(
-      device_name || 'Main Device', ip, port || 4370, password || 0,
-      info?.device_name || null, info?.serial_number || null, info?.firmware_version || null
-    );
-
-    if (timezone) {
-      db.prepare(`INSERT INTO settings (key, value) VALUES ('timezone', ?)
-                  ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(timezone);
-    }
-
+    const info = await saveDeviceConfig(req.body);
     res.json({ success: true, device_info: info });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -390,6 +417,9 @@ app.post('/api/restore', upload.single('backup'), (req, res) => {
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`T Zync running at http://localhost:${PORT}`);
+
+applySeedConfigIfPresent().finally(() => {
+  app.listen(PORT, () => {
+    console.log(`T Zync running at http://localhost:${PORT}`);
+  });
 });
